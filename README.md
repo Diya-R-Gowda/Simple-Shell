@@ -2,6 +2,24 @@
 
 A simple Unix-like shell written in C that reads commands from the command line and executes them, mimicking the core behavior of shells like `bash` or `dash`.
 
+## Project Description
+
+This project is based on one of the assigned sample software projects — **Simple Shell (Command Line Interpreter)** — rather than being a brand-new, team-proposed idea. The goal is to build a simple Unix-like shell in C that reads commands typed by a user, interprets them, and executes them, replicating the core behavior of standard shells such as `bash` or `dash`.
+
+There is currently no external customer or interested party for this project; it is being developed purely as a coursework deliverable, with the course instructors/evaluators as the primary stakeholders.
+
+The typical users of this system are people who are comfortable working in a command-line environment and want a functioning, minimal shell to run everyday commands — navigating directories, running programs, redirecting input/output, and chaining commands together with pipes. It would also be of interest to anyone wanting to understand, at a hands-on level, how a shell works internally (process creation via `fork`/`exec`, parsing, and I/O handling), since the project exposes all of that logic directly rather than hiding it behind an existing shell.
+
+By the end of this project, the user will be able to:
+
+- Launch the shell and interact with it through a continuous prompt (REPL)
+- Run any standard external command available on the system (e.g., `ls`, `cat`, `grep`)
+- Use built-in commands such as `cd`, `exit`, `pwd`, and `echo`
+- Redirect a command's input or output to/from a file using `<`, `>`, and `>>`
+- Chain multiple commands together using pipes (`|`)
+- Run commands in the background using `&`
+- Receive clear error messages for invalid commands, missing files, or malformed input, without the shell crashing
+
 ## Purpose
 
 This project implements a lightweight command-line interpreter (shell) that allows a user to enter commands and have them executed by the operating system, just like a standard Unix shell. It covers the fundamental mechanics of process creation, command parsing, and I/O handling that underlie all shell programs.
@@ -42,6 +60,17 @@ The system is a standalone, self-contained command-line application. It does not
 - Implemented in **C** (per project specification), using standard POSIX system calls (`fork`, `exec`, `pipe`, `dup2`, `wait`, etc.).
 - No reliance on third-party shell libraries — core logic must be implemented directly.
 - Must run in a standard terminal environment; no GUI component.
+
+## Task Assignment (Current Sprint)
+
+| Owner | Functional Feature(s) | Qualitative Property |
+| --- | --- | --- |
+| **Prithviraj** | REPL loop (prompt/read/execute cycle) + built-in commands: `cd`, `exit`, `pwd`, `echo`, `help` | Near-instant response for built-ins; clear error message on invalid usage |
+| **Aarush** | Command parsing / tokenization — splitting input into command + arguments, handling whitespace, quotes, special characters | Robust against malformed/unusual input without crashing |
+| **Debhargo** | Command execution engine — `fork()`, `exec()`, `wait()`, PATH resolution, exit-status reporting | No orphaned/zombie processes; accurate exit-status handling |
+| **Diya** | I/O redirection (`<`, `>`, `>>`), piping (`\|`), background execution (`&`), environment variable / PATH handling | Correctness of combined pipelines + redirection; owns integration, error handling, and docs |
+
+> Everyone is expected to test and review across all modules, not just their own — per team guidelines.
 
 ## Project Structure
 

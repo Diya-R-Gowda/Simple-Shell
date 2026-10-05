@@ -102,6 +102,20 @@ make
 
 This will compile the project and produce an executable named `myshell` (or as defined in the Makefile).
 
+The implementation is split into `src/parser.c`, `src/executor.c`, and
+`src/builtins.c`.  The parser validates operators and expands `$NAME` and
+`${NAME}` from the shell environment.  The executor uses `execvp`, so commands
+without a slash are resolved using `PATH`; `export NAME=VALUE` and
+`unset NAME` update the shell environment for later commands.  Background
+processes are tracked and reaped at the prompt, preventing zombies.
+
+The shell can also be exercised non-interactively, which is useful for
+regression tests:
+
+```bash
+printf 'printf "a\\nb\\n" | grep b > result.txt\nexit\n' | ./myshell
+```
+
 ## Usage
 
 ```bash

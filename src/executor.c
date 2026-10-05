@@ -37,12 +37,53 @@ static char *command_line_from_command(const Command *command)
     return line;
 }
 
+static char *command_line_from_pipeline(const Command *head)
+{
+    size_t length = 0;
+    size_t stage_count = 0;
+    const Command *command;
+    char *line;
+    char *cursor;
+
+    for (command = head; command != NULL; command = command->next) {
+        size_t i;
+        for (i = 0; command->argv != NULL && command->argv[i] != NULL; i++)
+            length += strlen(command->argv[i]) + (i == 0 ? 0 : 1);
+        if (command->next != NULL)
+            length += 3;
+        stage_count++;
+    }
+    if (stage_count == 0)
+        return NULL;
+    line = malloc(length + 1);
+    if (line == NULL)
+        return NULL;
+    cursor = line;
+    for (command = head; command != NULL; command = command->next) {
+        size_t i;
+        for (i = 0; command->argv != NULL && command->argv[i] != NULL; i++) {
+            size_t argument_length = strlen(command->argv[i]);
+            if (i != 0)
+                *cursor++ = ' ';
+            memcpy(cursor, command->argv[i], argument_length);
+            cursor += argument_length;
+        }
+        if (command->next != NULL) {
+            memcpy(cursor, " | ", 3);
+            cursor += 3;
+        }
+    }
+    *cursor = '\0';
+    return line;
+}
+
 JobList *shell_job_list(void)
 {
     return &shell_jobs;
 }
 
-static int add_job(JobList *jobs, pid_t pid, char *command_line)
+static int add_job(JobList *jobs, pid_t *pids, size_t pid_count,
+                   char *command_line)
 {
     Job *job = malloc(sizeof(*job));
     if (job == NULL)
@@ -50,11 +91,13 @@ static int add_job(JobList *jobs, pid_t pid, char *command_line)
     if (jobs->next_job_id <= 0)
         jobs->next_job_id = 1;
     job->job_id = jobs->next_job_id++;
-    job->pid = pid;
+    job->pids = pids;
+    job->pid_count = pid_count;
+    job->finished_count = 0;
     job->command_line = command_line;
     job->next = jobs->head;
     jobs->head = job;
-    printf("[%d] %ld\n", job->job_id, (long)pid);
+    printf("[%d] %ld\n", job->job_id, (long)pids[pid_count - 1]);
     return 0;
 }
 
@@ -112,11 +155,17 @@ void run_in_background(Command *cmd, JobList *jobs)
         }
         exec_command(cmd);
     }
-    if (add_job(jobs, pid, command_line) < 0) {
-        fprintf(stderr, "background command: out of memory\n");
-        free(command_line);
-        if (waitpid(pid, NULL, 0) < 0)
-            perror("waitpid");
+    {
+        pid_t *pids = malloc(sizeof(*pids));
+        if (pids != NULL)
+            pids[0] = pid;
+        if (pids == NULL || add_job(jobs, pids, 1, command_line) < 0) {
+            free(pids);
+            free(command_line);
+            fprintf(stderr, "background command: out of memory\n");
+            if (waitpid(pid, NULL, 0) < 0)
+                perror("waitpid");
+        }
     }
 }
 
@@ -129,17 +178,28 @@ void reap_finished_jobs(JobList *jobs)
     link = &jobs->head;
     while (*link != NULL) {
         Job *job = *link;
-        pid_t result = waitpid(job->pid, &status, WNOHANG);
-        if (result == 0) {
-            link = &job->next;
-        } else if (result == job->pid || (result < 0 && errno == ECHILD)) {
+        size_t i;
+        for (i = 0; i < job->pid_count; i++) {
+            pid_t result;
+            if (job->pids[i] <= 0)
+                continue;
+            result = waitpid(job->pids[i], &status, WNOHANG);
+            if (result == job->pids[i] ||
+                (result < 0 && errno == ECHILD)) {
+                job->pids[i] = -1;
+                job->finished_count++;
+            } else if (result < 0 && errno != EINTR) {
+                fprintf(stderr, "waitpid: %s\n", strerror(errno));
+            }
+        }
+        if (job->finished_count == job->pid_count) {
             printf("[%d] Done %s\n", job->job_id,
                    job->command_line == NULL ? "(unknown command)" : job->command_line);
             *link = job->next;
             free(job->command_line);
+            free(job->pids);
             free(job);
         } else {
-            fprintf(stderr, "waitpid(%ld): %s\n", (long)job->pid, strerror(errno));
             link = &job->next;
         }
     }
@@ -344,21 +404,17 @@ int execute_pipeline(Command *head)
 
     close_pipes(pipes, pipe_total);
     if (background) {
-        char *command_line = command_line_from_command(head);
+        char *command_line = command_line_from_pipeline(head);
         if (command_line == NULL) {
             fprintf(stderr, "background pipeline: out of memory\n");
             wait_for_pids(pids, command_total);
         } else {
-            for (i = 0; i < command_total; i++) {
-                char *job_line = strdup(command_line);
-                if (job_line == NULL || add_job(&shell_jobs, pids[i], job_line) < 0) {
-                    free(job_line);
-                    fprintf(stderr, "background pipeline: out of memory\n");
-                    wait_for_pids(&pids[i], command_total - i);
-                    break;
-                }
+            if (add_job(&shell_jobs, pids, command_total, command_line) < 0) {
+                fprintf(stderr, "background pipeline: out of memory\n");
+                wait_for_pids(pids, command_total);
+                free(command_line);
+                free(pids);
             }
-            free(command_line);
         }
     } else {
         for (i = 0; i < command_total; i++) {

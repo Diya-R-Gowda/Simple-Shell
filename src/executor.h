@@ -3,11 +3,14 @@
 
 #include "parser.h"
 #include "environment.h"
+#include <stddef.h>
 #include <sys/types.h>
 
 typedef struct Job {
     int job_id;
-    pid_t pid;
+    pid_t *pids;
+    size_t pid_count;
+    size_t finished_count;
     char *command_line;
     struct Job *next;
 } Job;

@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 static JobList shell_jobs;
+static int redirect_background_stdin(const Command *command);
 
 static char *command_line_from_command(const Command *command)
 {
@@ -149,6 +150,10 @@ void run_in_background(Command *cmd, JobList *jobs)
         return;
     }
     if (pid == 0) {
+        if (redirect_background_stdin(cmd) < 0) {
+            fflush(NULL);
+            _exit(1);
+        }
         if (apply_redirection(cmd) < 0) {
             fflush(NULL);
             _exit(1);
@@ -320,6 +325,25 @@ int execute_command(Command *cmd)
     return 1;
 }
 
+static int redirect_background_stdin(const Command *command)
+{
+    int fd;
+    if (command->input_file != NULL)
+        return 0;
+    fd = open("/dev/null", O_RDONLY);
+    if (fd < 0) {
+        perror("/dev/null");
+        return -1;
+    }
+    if (dup2(fd, STDIN_FILENO) < 0) {
+        perror("dup2 /dev/null");
+        close(fd);
+        return -1;
+    }
+    close(fd);
+    return 0;
+}
+
 int execute_pipeline(Command *head)
 {
     size_t command_total;
@@ -380,6 +404,10 @@ int execute_pipeline(Command *head)
         if (pids[i] == 0) {
             int should_exit;
 
+            if (background && i == 0 && redirect_background_stdin(command) < 0) {
+                fflush(NULL);
+                _exit(1);
+            }
             if (i > 0 && dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
                 fflush(NULL);
                 _exit(126);

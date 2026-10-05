@@ -315,21 +315,9 @@ int execute_command(Command *cmd)
         return 1;
     }
     if (pid == 0) {
-        char *path;
-        int error_number;
-
         if (apply_redirection(cmd) < 0)
             _exit(1);
-        path = resolve_executable_path(cmd->argv[0]);
-        if (path == NULL) {
-            fprintf(stderr, "%s: command not found\n", cmd->argv[0]);
-            _exit(127);
-        }
-        execvp(path, cmd->argv);
-        error_number = errno;
-        free(path);
-        fprintf(stderr, "%s: %s\n", cmd->argv[0], strerror(error_number));
-        _exit(error_number == ENOENT ? 127 : 126);
+        exec_command(cmd);
     }
     if (waitpid(pid, &status, 0) < 0) {
         perror("waitpid");

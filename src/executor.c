@@ -60,9 +60,17 @@ static int add_job(JobList *jobs, pid_t pid, char *command_line)
 
 static void exec_command(Command *cmd)
 {
-    char *path = resolve_executable_path(cmd->argv[0]);
+    char *path;
     int error_number;
+    int should_exit;
 
+    if (is_builtin(cmd->argv[0])) {
+        int status = run_builtin(cmd, &should_exit);
+        fflush(NULL);
+        _exit(should_exit ? 0 : status);
+    }
+
+    path = resolve_executable_path(cmd->argv[0]);
     if (path == NULL) {
         fprintf(stderr, "%s: command not found\n", cmd->argv[0]);
         fflush(NULL);

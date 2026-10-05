@@ -80,12 +80,12 @@ simple-shell/
 │   ├── main.c          # Entry point, REPL loop
 │   ├── parser.c        # Tokenizer / command parsing
 │   ├── parser.h
-│   ├── executor.c      # fork/exec/wait command execution
 │   ├── executor.h
 │   ├── builtins.c      # Built-in command implementations
 │   ├── builtins.h
-│   ├── redirection.c   # I/O redirection and piping logic
-│   └── redirection.h
+│   ├── environment.c   # Environment access and PATH resolution
+│   ├── environment.h
+│   └── executor.c      # Redirection, pipelines, jobs, and fork/exec/wait
 ├── tests/
 │   └── test_cases.sh   # Shell script with sample test commands
 ├── Makefile
@@ -102,25 +102,42 @@ make
 
 This will compile the project and produce an executable named `myshell` (or as defined in the Makefile).
 
-The implementation is split into `src/parser.c`, `src/executor.c`, and
-`src/builtins.c`.  The parser validates operators and expands `$NAME` and
-``${NAME}` from the shell environment.  The executor resolves command names
-using `PATH` and then uses `execv`; `export NAME=VALUE` and
-`unset NAME` update the shell environment for later commands.  Background
-processes are tracked and reaped at the prompt, preventing zombies.
+## Implementation Notes
 
-Executable lookup is implemented by `resolve_executable_path()` in
-`src/environment.c`.  Commands containing `/` are used as supplied; other
-commands are searched in each `PATH` entry with `access(..., X_OK)`.
-`shell_getenv()` provides the shared environment lookup used by parsing and
-built-ins.
+- Redirection is applied in children before `execv()`. In-process built-ins
+  temporarily save standard input and output, apply redirection, then restore
+  the saved descriptors after flushing output.
+- Pipelines create all pipes before forking. Each child connects only its
+  adjacent pipe ends, and both parent and children close every unused pipe end
+  to prevent descriptor leaks and pipeline hangs.
+- Background jobs store all process IDs for a pipeline as one job. Finished
+  processes are checked with nonblocking `waitpid(..., WNOHANG)` at the start
+  of each prompt iteration.
+- `resolve_executable_path()` uses a command containing `/` unchanged.
+  Otherwise it searches each `PATH` entry with `access(..., X_OK)` and
+  requires the result to be a regular file before `execv()` is called.
+- The parser validates operators and expands `$NAME` and `${NAME}` from the
+  shell environment. `export NAME[=VALUE] [...]` and `unset NAME` update the
+  environment used by later commands.
 
-The shell can also be exercised non-interactively, which is useful for
-regression tests:
+## Testing
+
+Build and run the regression suite with:
 
 ```bash
-printf 'printf "a\\nb\\n" | grep b > result.txt\nexit\n' | ./myshell
+make test
 ```
+
+The suite in `tests/test_cases.sh` runs the shell non-interactively and covers
+PATH lookup, built-ins, redirection, pipelines, background jobs, parser errors,
+and malformed or unusually long input.
+
+## Known Limitations
+
+- `2>` and `&&` are not supported.
+- `&` is supported only at the end of a command line.
+- There is no `fg` or `bg` job-control command.
+- Command history and interactive signal handling are not implemented.
 
 ## Usage
 

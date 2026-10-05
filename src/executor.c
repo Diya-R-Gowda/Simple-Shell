@@ -200,6 +200,54 @@ static void close_pipes(int (*pipes)[2], size_t pipe_count)
     }
 }
 
+int execute_command(Command *cmd)
+{
+    pid_t pid;
+    int status;
+
+    if (cmd == NULL || cmd->argv == NULL || cmd->argv[0] == NULL) {
+        fprintf(stderr, "cannot execute an empty command\n");
+        return 2;
+    }
+    if (cmd->next != NULL)
+        return execute_pipeline(cmd);
+    if (cmd->background) {
+        run_in_background(cmd, &shell_jobs);
+        return 0;
+    }
+    pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        return 1;
+    }
+    if (pid == 0) {
+        char *path;
+        int error_number;
+
+        if (apply_redirection(cmd) < 0)
+            _exit(1);
+        path = resolve_executable_path(cmd->argv[0]);
+        if (path == NULL) {
+            fprintf(stderr, "%s: command not found\n", cmd->argv[0]);
+            _exit(127);
+        }
+        execvp(path, cmd->argv);
+        error_number = errno;
+        free(path);
+        fprintf(stderr, "%s: %s\n", cmd->argv[0], strerror(error_number));
+        _exit(error_number == ENOENT ? 127 : 126);
+    }
+    if (waitpid(pid, &status, 0) < 0) {
+        perror("waitpid");
+        return 1;
+    }
+    if (WIFEXITED(status))
+        return WEXITSTATUS(status);
+    if (WIFSIGNALED(status))
+        return 128 + WTERMSIG(status);
+    return 1;
+}
+
 int execute_pipeline(Command *head)
 {
     size_t command_total;
@@ -334,5 +382,5 @@ int execute_commands(Command *commands)
             return 1000 + status;
         return status;
     }
-    return execute_pipeline(commands);
+    return execute_command(commands);
 }

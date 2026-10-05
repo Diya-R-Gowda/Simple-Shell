@@ -24,6 +24,7 @@ int apply_redirection(Command *cmd);
 int execute_command(Command *cmd);
 void run_in_background(Command *cmd, JobList *jobs);
 void reap_finished_jobs(JobList *jobs);
+void free_job_list(JobList *jobs);
 JobList *shell_job_list(void);
 int execute_pipeline(Command *head);
 int execute_commands(Command *commands);

@@ -210,6 +210,23 @@ void reap_finished_jobs(JobList *jobs)
     }
 }
 
+void free_job_list(JobList *jobs)
+{
+    Job *job;
+    Job *next;
+    if (jobs == NULL)
+        return;
+    job = jobs->head;
+    while (job != NULL) {
+        next = job->next;
+        free(job->command_line);
+        free(job->pids);
+        free(job);
+        job = next;
+    }
+    jobs->head = NULL;
+}
+
 void reap_background_jobs(void)
 {
     reap_finished_jobs(&shell_jobs);

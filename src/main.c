@@ -42,5 +42,6 @@ int main(void)
     }
     free(line);
     reap_background_jobs();
+    free_job_list(shell_job_list());
     return 0;
 }

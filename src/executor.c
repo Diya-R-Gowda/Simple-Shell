@@ -101,116 +101,146 @@ static void wait_for_pids(const pid_t *pids, size_t count)
     }
 }
 
-int execute_commands(Command *commands)
+static void close_pipes(int (*pipes)[2], size_t pipe_count)
 {
-    size_t count;
-    pid_t *pids;
     size_t i;
-    int previous_read = -1;
+    for (i = 0; i < pipe_count; i++) {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+}
+
+int execute_pipeline(Command *head)
+{
+    size_t command_total;
+    size_t pipe_total;
+    size_t i;
+    Command *command;
+    Command *last;
+    int (*pipes)[2] = NULL;
+    pid_t *pids = NULL;
     int last_status = 0;
     int background;
 
-    if (commands == NULL || commands->argv == NULL || commands->argv[0] == NULL)
+    if (head == NULL || head->argv == NULL || head->argv[0] == NULL)
         return 0;
-    reap_background_jobs();
-    count = command_count(commands);
-    background = commands->background;
-    if (count == 1 && !background && is_builtin(commands->argv[0])) {
-        int should_exit;
-        int saved_in = dup(STDIN_FILENO);
-        int saved_out = dup(STDOUT_FILENO);
-        if (saved_in < 0 || saved_out < 0 || apply_redirection(commands) < 0) {
-            if (saved_in >= 0) close(saved_in);
-            if (saved_out >= 0) close(saved_out);
-            return 1;
-        }
-        last_status = run_builtin(commands, &should_exit);
-        if (dup2(saved_in, STDIN_FILENO) < 0 || dup2(saved_out, STDOUT_FILENO) < 0)
-            fprintf(stderr, "failed to restore standard I/O: %s\n", strerror(errno));
-        close(saved_in);
-        close(saved_out);
-        if (should_exit)
-            return 1000 + last_status;
-        return last_status;
-    }
-    pids = calloc(count, sizeof(*pids));
+
+    command_total = command_count(head);
+    pipe_total = command_total - 1;
+    last = head;
+    while (last->next != NULL)
+        last = last->next;
+    background = last->background;
+
+    pids = calloc(command_total, sizeof(*pids));
     if (pids == NULL) {
         fprintf(stderr, "out of memory\n");
         return 1;
     }
-    for (i = 0; i < count; i++) {
-        int pipe_fds[2] = {-1, -1};
-        Command *command = commands;
-        size_t j;
-        for (j = 0; j < i; j++)
-            command = command->next;
-        if (command->next != NULL && pipe(pipe_fds) < 0) {
-            fprintf(stderr, "pipe: %s\n", strerror(errno));
-            if (previous_read >= 0) close(previous_read);
-            wait_for_pids(pids, i);
+    if (pipe_total > 0) {
+        pipes = calloc(pipe_total, sizeof(*pipes));
+        if (pipes == NULL) {
+            fprintf(stderr, "out of memory\n");
             free(pids);
             return 1;
         }
+        for (i = 0; i < pipe_total; i++) {
+            if (pipe(pipes[i]) < 0) {
+                perror("pipe");
+                close_pipes(pipes, i);
+                free(pipes);
+                free(pids);
+                return 1;
+            }
+        }
+    }
+
+    command = head;
+    for (i = 0; i < command_total; i++, command = command->next) {
         pids[i] = fork();
         if (pids[i] < 0) {
-            fprintf(stderr, "fork: %s\n", strerror(errno));
-            if (pipe_fds[0] >= 0) close(pipe_fds[0]);
-            if (pipe_fds[1] >= 0) close(pipe_fds[1]);
-            if (previous_read >= 0) close(previous_read);
+            perror("fork");
+            close_pipes(pipes, pipe_total);
             wait_for_pids(pids, i);
+            free(pipes);
             free(pids);
             return 1;
         }
         if (pids[i] == 0) {
             int should_exit;
-            if (previous_read >= 0 && dup2(previous_read, STDIN_FILENO) < 0)
+
+            if (i > 0 && dup2(pipes[i - 1][0], STDIN_FILENO) < 0)
                 _exit(126);
-            if (pipe_fds[1] >= 0 && dup2(pipe_fds[1], STDOUT_FILENO) < 0)
+            if (i < pipe_total && dup2(pipes[i][1], STDOUT_FILENO) < 0)
                 _exit(126);
-            if (previous_read >= 0) close(previous_read);
-            if (pipe_fds[0] >= 0) close(pipe_fds[0]);
-            if (pipe_fds[1] >= 0) close(pipe_fds[1]);
+            close_pipes(pipes, pipe_total);
             if (apply_redirection(command) < 0)
                 _exit(1);
             if (is_builtin(command->argv[0])) {
-                int result = run_builtin(command, &should_exit);
-                _exit(should_exit ? 0 : result);
+                int status = run_builtin(command, &should_exit);
+                _exit(should_exit ? 0 : status);
             }
             execvp(command->argv[0], command->argv);
             fprintf(stderr, "%s: %s\n", command->argv[0], strerror(errno));
             _exit(errno == ENOENT ? 127 : 126);
         }
-        if (previous_read >= 0)
-            close(previous_read);
-        if (pipe_fds[1] >= 0)
-            close(pipe_fds[1]);
-        previous_read = pipe_fds[0];
     }
-    if (previous_read >= 0)
-        close(previous_read);
+
+    close_pipes(pipes, pipe_total);
     if (background) {
-        if (job_count + count > MAX_JOBS) {
+        if (job_count + command_total > MAX_JOBS) {
             fprintf(stderr, "background job table is full; waiting for this job\n");
-            wait_for_pids(pids, count);
+            wait_for_pids(pids, command_total);
         } else {
             unsigned long job_number = next_job++;
-            for (i = 0; i < count; i++) {
+            for (i = 0; i < command_total; i++) {
                 jobs[job_count] = pids[i];
-                jobs_numbers[job_count++] = job_number;
+                job_numbers[job_count++] = job_number;
             }
-            printf("[%lu] %ld\n", job_number, (long)pids[count - 1]);
+            printf("[%lu] %ld\n", job_number, (long)pids[command_total - 1]);
         }
     } else {
-        for (i = 0; i < count; i++) {
+        for (i = 0; i < command_total; i++) {
             int status;
             if (waitpid(pids[i], &status, 0) < 0) {
-                fprintf(stderr, "waitpid: %s\n", strerror(errno));
+                perror("waitpid");
                 last_status = 1;
-            } else {
+            } else if (i == command_total - 1) {
                 last_status = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
             }
         }
     }
+    free(pipes);
     free(pids);
     return last_status;
+}
+
+int execute_commands(Command *commands)
+{
+    size_t count;
+
+    if (commands == NULL || commands->argv == NULL || commands->argv[0] == NULL)
+        return 0;
+    reap_background_jobs();
+    count = command_count(commands);
+    if (count == 1 && !commands->background && is_builtin(commands->argv[0])) {
+        int should_exit;
+        int saved_in = dup(STDIN_FILENO);
+        int saved_out = dup(STDOUT_FILENO);
+        int status;
+        if (saved_in < 0 || saved_out < 0 || apply_redirection(commands) < 0) {
+            if (saved_in >= 0) close(saved_in);
+            if (saved_out >= 0) close(saved_out);
+            return 1;
+        }
+        status = run_builtin(commands, &should_exit);
+        if (dup2(saved_in, STDIN_FILENO) < 0 || dup2(saved_out, STDOUT_FILENO) < 0)
+            fprintf(stderr, "failed to restore standard I/O: %s\n", strerror(errno));
+        close(saved_in);
+        close(saved_out);
+        if (should_exit)
+            return 1000 + status;
+        return status;
+    }
+    return execute_pipeline(commands);
 }

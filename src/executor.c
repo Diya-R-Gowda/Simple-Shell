@@ -380,12 +380,21 @@ int execute_commands(Command *commands)
         int saved_in = dup(STDIN_FILENO);
         int saved_out = dup(STDOUT_FILENO);
         int status;
-        if (saved_in < 0 || saved_out < 0 || apply_redirection(commands) < 0) {
+        if (saved_in < 0 || saved_out < 0) {
             if (saved_in >= 0) close(saved_in);
             if (saved_out >= 0) close(saved_out);
             return 1;
         }
+        if (apply_redirection(commands) < 0) {
+            fflush(stdout);
+            dup2(saved_in, STDIN_FILENO);
+            dup2(saved_out, STDOUT_FILENO);
+            close(saved_in);
+            close(saved_out);
+            return 1;
+        }
         status = run_builtin(commands, &should_exit);
+        fflush(stdout);
         if (dup2(saved_in, STDIN_FILENO) < 0 || dup2(saved_out, STDOUT_FILENO) < 0)
             fprintf(stderr, "failed to restore standard I/O: %s\n", strerror(errno));
         close(saved_in);

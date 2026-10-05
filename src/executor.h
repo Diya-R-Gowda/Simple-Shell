@@ -29,6 +29,8 @@ JobList *shell_job_list(void);
 int execute_pipeline(Command *head);
 int execute_commands(Command *commands);
 int shell_exit_requested(void);
+int shell_last_status(void);
+void shell_set_last_status(int status);
 void reap_background_jobs(void);
 
 #endif

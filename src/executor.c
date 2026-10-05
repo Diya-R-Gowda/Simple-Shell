@@ -13,6 +13,7 @@
 
 static JobList shell_jobs;
 static int exit_requested;
+static int last_command_status;
 static int redirect_background_stdin(const Command *command);
 
 static char *command_line_from_command(const Command *command)
@@ -87,6 +88,16 @@ JobList *shell_job_list(void)
 int shell_exit_requested(void)
 {
     return exit_requested;
+}
+
+int shell_last_status(void)
+{
+    return last_command_status;
+}
+
+void shell_set_last_status(int status)
+{
+    last_command_status = status;
 }
 
 static int add_job(JobList *jobs, pid_t *pids, size_t pid_count,

@@ -10,42 +10,117 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define MAX_JOBS 64
-static pid_t jobs[MAX_JOBS];
-static unsigned long job_numbers[MAX_JOBS];
-static size_t job_count;
-static unsigned long next_job = 1;
+static JobList shell_jobs;
 
-static void report_status(pid_t pid, int status)
+static char *command_line_from_command(const Command *command)
 {
-    if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
-        fprintf(stderr, "process %ld exited with status %d\n", (long)pid, WEXITSTATUS(status));
-    else if (WIFSIGNALED(status))
-        fprintf(stderr, "process %ld terminated by signal %d\n", (long)pid, WTERMSIG(status));
+    size_t length = 0;
+    size_t i;
+    char *line;
+    char *cursor;
+
+    for (i = 0; command->argv != NULL && command->argv[i] != NULL; i++)
+        length += strlen(command->argv[i]) + (i == 0 ? 0 : 1);
+    line = malloc(length + 1);
+    if (line == NULL)
+        return NULL;
+    cursor = line;
+    for (i = 0; command->argv != NULL && command->argv[i] != NULL; i++) {
+        size_t argument_length = strlen(command->argv[i]);
+        if (i != 0)
+            *cursor++ = ' ';
+        memcpy(cursor, command->argv[i], argument_length);
+        cursor += argument_length;
+    }
+    *cursor = '\0';
+    return line;
+}
+
+JobList *shell_job_list(void)
+{
+    return &shell_jobs;
+}
+
+static int add_job(JobList *jobs, pid_t pid, char *command_line)
+{
+    Job *job = malloc(sizeof(*job));
+    if (job == NULL)
+        return -1;
+    if (jobs->next_job_id <= 0)
+        jobs->next_job_id = 1;
+    job->job_id = jobs->next_job_id++;
+    job->pid = pid;
+    job->command_line = command_line;
+    job->next = jobs->head;
+    jobs->head = job;
+    printf("[%d] %ld\n", job->job_id, (long)pid);
+    return 0;
+}
+
+void run_in_background(Command *cmd, JobList *jobs)
+{
+    char *command_line;
+    pid_t pid;
+
+    if (cmd == NULL || cmd->argv == NULL || cmd->argv[0] == NULL ||
+        jobs == NULL) {
+        fprintf(stderr, "cannot start an empty background command\n");
+        return;
+    }
+    command_line = command_line_from_command(cmd);
+    if (command_line == NULL) {
+        fprintf(stderr, "background command: out of memory\n");
+        return;
+    }
+    pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        free(command_line);
+        return;
+    }
+    if (pid == 0) {
+        if (apply_redirection(cmd) < 0)
+            _exit(1);
+        execvp(cmd->argv[0], cmd->argv);
+        fprintf(stderr, "%s: %s\n", cmd->argv[0], strerror(errno));
+        _exit(errno == ENOENT ? 127 : 126);
+    }
+    if (add_job(jobs, pid, command_line) < 0) {
+        fprintf(stderr, "background command: out of memory\n");
+        free(command_line);
+        if (waitpid(pid, NULL, 0) < 0)
+            perror("waitpid");
+    }
+}
+
+void reap_finished_jobs(JobList *jobs)
+{
+    Job **link;
+    int status;
+    if (jobs == NULL)
+        return;
+    link = &jobs->head;
+    while (*link != NULL) {
+        Job *job = *link;
+        pid_t result = waitpid(job->pid, &status, WNOHANG);
+        if (result == 0) {
+            link = &job->next;
+        } else if (result == job->pid || (result < 0 && errno == ECHILD)) {
+            printf("[%d] Done %s\n", job->job_id,
+                   job->command_line == NULL ? "(unknown command)" : job->command_line);
+            *link = job->next;
+            free(job->command_line);
+            free(job);
+        } else {
+            fprintf(stderr, "waitpid(%ld): %s\n", (long)job->pid, strerror(errno));
+            link = &job->next;
+        }
+    }
 }
 
 void reap_background_jobs(void)
 {
-    size_t i = 0;
-    int status;
-    while (i < job_count) {
-        pid_t result = waitpid(jobs[i], &status, WNOHANG);
-        if (result == 0) {
-            i++;
-        } else if (result == jobs[i]) {
-            printf("[%lu] done (pid %ld)\n", jobs_numbers[i], (long)jobs[i]);
-            report_status(jobs[i], status);
-            jobs[i] = jobs[job_count - 1];
-            jobs_numbers[i] = jobs_numbers[job_count - 1];
-            job_count--;
-        } else if (result < 0 && errno == ECHILD) {
-            jobs[i] = jobs[job_count - 1];
-            jobs_numbers[i] = jobs_numbers[job_count - 1];
-            job_count--;
-        } else {
-            i++;
-        }
-    }
+    reap_finished_jobs(&shell_jobs);
 }
 
 int apply_redirection(Command *cmd)
@@ -188,16 +263,21 @@ int execute_pipeline(Command *head)
 
     close_pipes(pipes, pipe_total);
     if (background) {
-        if (job_count + command_total > MAX_JOBS) {
-            fprintf(stderr, "background job table is full; waiting for this job\n");
+        char *command_line = command_line_from_command(head);
+        if (command_line == NULL) {
+            fprintf(stderr, "background pipeline: out of memory\n");
             wait_for_pids(pids, command_total);
         } else {
-            unsigned long job_number = next_job++;
             for (i = 0; i < command_total; i++) {
-                jobs[job_count] = pids[i];
-                job_numbers[job_count++] = job_number;
+                char *job_line = strdup(command_line);
+                if (job_line == NULL || add_job(&shell_jobs, pids[i], job_line) < 0) {
+                    free(job_line);
+                    fprintf(stderr, "background pipeline: out of memory\n");
+                    wait_for_pids(&pids[i], command_total - i);
+                    break;
+                }
             }
-            printf("[%lu] %ld\n", job_number, (long)pids[command_total - 1]);
+            free(command_line);
         }
     } else {
         for (i = 0; i < command_total; i++) {
@@ -221,7 +301,6 @@ int execute_commands(Command *commands)
 
     if (commands == NULL || commands->argv == NULL || commands->argv[0] == NULL)
         return 0;
-    reap_background_jobs();
     count = command_count(commands);
     if (count == 1 && !commands->background && is_builtin(commands->argv[0])) {
         int should_exit;

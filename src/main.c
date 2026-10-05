@@ -18,6 +18,7 @@ int main(void)
         char *error = NULL;
         ssize_t length;
         int status;
+        reap_finished_jobs(shell_job_list());
         if (interactive) {
             fputs("myshell> ", stdout);
             fflush(stdout);

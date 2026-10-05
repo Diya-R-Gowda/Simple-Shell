@@ -28,6 +28,7 @@ void free_job_list(JobList *jobs);
 JobList *shell_job_list(void);
 int execute_pipeline(Command *head);
 int execute_commands(Command *commands);
+int shell_exit_requested(void);
 void reap_background_jobs(void);
 
 #endif

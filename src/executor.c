@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 static JobList shell_jobs;
+static int exit_requested;
 static int redirect_background_stdin(const Command *command);
 
 static char *command_line_from_command(const Command *command)
@@ -81,6 +82,11 @@ static char *command_line_from_pipeline(const Command *head)
 JobList *shell_job_list(void)
 {
     return &shell_jobs;
+}
+
+int shell_exit_requested(void)
+{
+    return exit_requested;
 }
 
 static int add_job(JobList *jobs, pid_t *pids, size_t pid_count,
@@ -503,8 +509,10 @@ int execute_commands(Command *commands)
             fprintf(stderr, "failed to restore standard I/O: %s\n", strerror(errno));
         close(saved_in);
         close(saved_out);
-        if (should_exit)
-            return 1000 + status;
+        if (should_exit) {
+            exit_requested = 1;
+            return status;
+        }
         return status;
     }
     return execute_command(commands);

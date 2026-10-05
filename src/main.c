@@ -12,6 +12,7 @@ int main(void)
     size_t capacity = 0;
     int interactive = isatty(STDIN_FILENO);
     int running = 1;
+    int exit_status = 0;
 
     while (running) {
         Command *commands = NULL;
@@ -36,12 +37,14 @@ int main(void)
         if (commands == NULL)
             continue;
         status = execute_commands(commands);
-        if (status >= 1000)
+        if (shell_exit_requested()) {
             running = 0;
+            exit_status = status;
+        }
         free_commands(commands);
     }
     free(line);
     reap_background_jobs();
     free_job_list(shell_job_list());
-    return 0;
+    return exit_status;
 }

@@ -7,7 +7,12 @@
 #include <string.h>
 
 typedef struct {
-    char **items;
+    char *text;
+    int is_operator;
+} Token;
+
+typedef struct {
+    Token *items;
     size_t count;
     size_t capacity;
 } StringList;
@@ -16,13 +21,13 @@ static void list_free(StringList *list)
 {
     size_t i;
     for (i = 0; i < list->count; i++)
-        free(list->items[i]);
+        free(list->items[i].text);
     free(list->items);
 }
 
-static int list_add(StringList *list, char *item)
+static int list_add(StringList *list, char *item, int is_operator)
 {
-    char **grown;
+    Token *grown;
     if (list->count == list->capacity) {
         size_t capacity = list->capacity == 0 ? 8 : list->capacity * 2;
         grown = realloc(list->items, capacity * sizeof(*grown));
@@ -31,7 +36,9 @@ static int list_add(StringList *list, char *item)
         list->items = grown;
         list->capacity = capacity;
     }
-    list->items[list->count++] = item;
+    list->items[list->count].text = item;
+    list->items[list->count].is_operator = is_operator;
+    list->count++;
     return 0;
 }
 
@@ -219,7 +226,7 @@ int parse_line(const char *line, Command **commands, char **error_message)
                 }
                 position++;
             }
-            if (operator == NULL || list_add(&words, operator) < 0) {
+            if (operator == NULL || list_add(&words, operator, 1) < 0) {
                 free(operator);
                 snprintf(error, sizeof(error), "out of memory");
                 goto fail;
@@ -229,7 +236,7 @@ int parse_line(const char *line, Command **commands, char **error_message)
             char *word = parse_word(line, &position, error);
             if (word == NULL)
                 goto fail;
-            if (list_add(&words, word) < 0) {
+            if (list_add(&words, word, 0) < 0) {
                 free(word);
                 snprintf(error, sizeof(error), "out of memory");
                 goto fail;
@@ -247,8 +254,9 @@ int parse_line(const char *line, Command **commands, char **error_message)
         goto fail;
     head = current;
     for (position = 0; position < words.count; position++) {
-        char *token = words.items[position];
-        if (strcmp(token, "|") == 0) {
+        char *token = words.items[position].text;
+        int is_operator = words.items[position].is_operator;
+        if (is_operator && strcmp(token, "|") == 0) {
             if (current->argv == NULL || current->argv[0] == NULL) {
                 snprintf(error, sizeof(error), "pipe requires commands on both sides");
                 goto fail;
@@ -257,16 +265,13 @@ int parse_line(const char *line, Command **commands, char **error_message)
             if (current->next == NULL)
                 goto fail;
             current = current->next;
-        } else if (strcmp(token, "<") == 0 || strcmp(token, ">") == 0 ||
-                   strcmp(token, ">>") == 0) {
+        } else if (is_operator &&
+                   (strcmp(token, "<") == 0 || strcmp(token, ">") == 0 ||
+                    strcmp(token, ">>") == 0)) {
             char **target;
             if (position + 1 >= words.count ||
-                words.items[position + 1][0] == '\0' ||
-                strcmp(words.items[position + 1], "|") == 0 ||
-                strcmp(words.items[position + 1], "<") == 0 ||
-                strcmp(words.items[position + 1], ">") == 0 ||
-                strcmp(words.items[position + 1], ">>") == 0 ||
-                strcmp(words.items[position + 1], "&") == 0) {
+                words.items[position + 1].text[0] == '\0' ||
+                words.items[position + 1].is_operator) {
                 snprintf(error, sizeof(error), "redirection requires a file name");
                 goto fail;
             }
@@ -275,12 +280,12 @@ int parse_line(const char *line, Command **commands, char **error_message)
                 snprintf(error, sizeof(error), "duplicate redirection");
                 goto fail;
             }
-            *target = strdup(words.items[++position]);
+            *target = strdup(words.items[++position].text);
             if (*target == NULL)
                 goto fail;
             if (strcmp(token, ">") == 0 || strcmp(token, ">>") == 0)
                 current->append_mode = strcmp(token, ">>") == 0;
-        } else if (strcmp(token, "&") == 0) {
+        } else if (is_operator && strcmp(token, "&") == 0) {
             if (position + 1 != words.count) {
                 snprintf(error, sizeof(error), "'&' must be at the end of a command");
                 goto fail;

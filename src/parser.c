@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct {
     char *text;
@@ -80,6 +81,15 @@ static char *expand_variable(const char *line, size_t *position, char *error)
             return NULL;
         }
         length = *position - start;
+        {
+            size_t i;
+            for (i = 0; i < length; i++) {
+                if (!variable_name_char(line[start + i])) {
+                    snprintf(error, 256, "invalid variable name");
+                    return NULL;
+                }
+            }
+        }
         (*position)++;
     } else {
         while (variable_name_char(line[*position]))
@@ -146,7 +156,9 @@ static char *parse_word(const char *line, size_t *position, char *error)
                 break;
             }
             if (line[*position] == '$') {
-                value = strdup("$$");
+                char pid_text[32];
+                snprintf(pid_text, sizeof(pid_text), "%ld", (long)getpid());
+                value = strdup(pid_text);
                 (*position)++;
             } else if (line[*position] != '{' &&
                        !variable_name_char(line[*position])) {

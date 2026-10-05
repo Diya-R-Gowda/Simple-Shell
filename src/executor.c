@@ -65,12 +65,14 @@ static void exec_command(Command *cmd)
 
     if (path == NULL) {
         fprintf(stderr, "%s: command not found\n", cmd->argv[0]);
+        fflush(NULL);
         _exit(127);
     }
     execv(path, cmd->argv);
     error_number = errno;
     free(path);
     fprintf(stderr, "%s: %s\n", cmd->argv[0], strerror(error_number));
+    fflush(NULL);
     _exit(error_number == ENOENT ? 127 : 126);
 }
 
@@ -96,8 +98,10 @@ void run_in_background(Command *cmd, JobList *jobs)
         return;
     }
     if (pid == 0) {
-        if (apply_redirection(cmd) < 0)
+        if (apply_redirection(cmd) < 0) {
+            fflush(NULL);
             _exit(1);
+        }
         exec_command(cmd);
     }
     if (add_job(jobs, pid, command_line) < 0) {
@@ -295,6 +299,7 @@ int execute_pipeline(Command *head)
 
     command = head;
     for (i = 0; i < command_total; i++, command = command->next) {
+        fflush(stdout);
         pids[i] = fork();
         if (pids[i] < 0) {
             perror("fork");
@@ -307,15 +312,22 @@ int execute_pipeline(Command *head)
         if (pids[i] == 0) {
             int should_exit;
 
-            if (i > 0 && dup2(pipes[i - 1][0], STDIN_FILENO) < 0)
+            if (i > 0 && dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
+                fflush(NULL);
                 _exit(126);
-            if (i < pipe_total && dup2(pipes[i][1], STDOUT_FILENO) < 0)
+            }
+            if (i < pipe_total && dup2(pipes[i][1], STDOUT_FILENO) < 0) {
+                fflush(NULL);
                 _exit(126);
+            }
             close_pipes(pipes, pipe_total);
-            if (apply_redirection(command) < 0)
+            if (apply_redirection(command) < 0) {
+                fflush(NULL);
                 _exit(1);
+            }
             if (is_builtin(command->argv[0])) {
                 int status = run_builtin(command, &should_exit);
+                fflush(NULL);
                 _exit(should_exit ? 0 : status);
             }
             exec_command(command);

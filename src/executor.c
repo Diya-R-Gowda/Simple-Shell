@@ -387,8 +387,10 @@ int execute_commands(Command *commands)
         }
         if (apply_redirection(commands) < 0) {
             fflush(stdout);
-            dup2(saved_in, STDIN_FILENO);
-            dup2(saved_out, STDOUT_FILENO);
+            if (dup2(saved_in, STDIN_FILENO) < 0)
+                perror("restore stdin");
+            if (dup2(saved_out, STDOUT_FILENO) < 0)
+                perror("restore stdout");
             close(saved_in);
             close(saved_out);
             return 1;

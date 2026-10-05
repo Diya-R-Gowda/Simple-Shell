@@ -1,6 +1,7 @@
 #include "environment.h"
 
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -30,6 +31,7 @@ char *resolve_executable_path(const char *cmd)
         size_t command_length = strlen(cmd);
         size_t full_length;
         char *candidate;
+        struct stat candidate_info;
 
         separator = strchr(entry, ':');
         directory_length = separator == NULL
@@ -47,7 +49,9 @@ char *resolve_executable_path(const char *cmd)
         } else {
             memcpy(candidate, cmd, command_length + 1);
         }
-        if (access(candidate, X_OK) == 0)
+        if (access(candidate, X_OK) == 0 &&
+            stat(candidate, &candidate_info) == 0 &&
+            S_ISREG(candidate_info.st_mode))
             return candidate;
         free(candidate);
         if (separator == NULL)

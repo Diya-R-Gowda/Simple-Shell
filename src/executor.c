@@ -48,31 +48,32 @@ void reap_background_jobs(void)
     }
 }
 
-static int apply_redirection(const Command *command)
+int apply_redirection(Command *cmd)
 {
     int fd;
-    if (command->input_file != NULL) {
-        fd = open(command->input_file, O_RDONLY);
+    if (cmd->input_file != NULL) {
+        fd = open(cmd->input_file, O_RDONLY);
         if (fd < 0) {
-            fprintf(stderr, "%s: %s\n", command->input_file, strerror(errno));
+            perror(cmd->input_file);
             return -1;
         }
         if (dup2(fd, STDIN_FILENO) < 0) {
-            fprintf(stderr, "dup2: %s\n", strerror(errno));
+            perror("dup2");
             close(fd);
             return -1;
         }
         close(fd);
     }
-    if (command->output_file != NULL) {
-        int flags = O_WRONLY | O_CREAT | (command->append_mode ? O_APPEND : O_TRUNC);
-        fd = open(command->output_file, flags, 0666);
+    if (cmd->output_file != NULL) {
+        int flags = O_WRONLY | O_CREAT |
+                    (cmd->append_mode ? O_APPEND : O_TRUNC);
+        fd = open(cmd->output_file, flags, 0644);
         if (fd < 0) {
-            fprintf(stderr, "%s: %s\n", command->output_file, strerror(errno));
+            perror(cmd->output_file);
             return -1;
         }
         if (dup2(fd, STDOUT_FILENO) < 0) {
-            fprintf(stderr, "dup2: %s\n", strerror(errno));
+            perror("dup2");
             close(fd);
             return -1;
         }

@@ -456,7 +456,12 @@ int execute_pipeline(Command *head)
                 perror("waitpid");
                 last_status = 1;
             } else if (i == command_total - 1) {
-                last_status = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+                if (WIFEXITED(status))
+                    last_status = WEXITSTATUS(status);
+                else if (WIFSIGNALED(status))
+                    last_status = 128 + WTERMSIG(status);
+                else
+                    last_status = 1;
             }
         }
     }

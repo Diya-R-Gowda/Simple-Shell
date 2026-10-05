@@ -1,11 +1,25 @@
 #include "builtins.h"
 #include "environment.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+static int valid_variable_name(const char *name, size_t length)
+{
+    size_t i;
+    if (length == 0 ||
+        !(isalpha((unsigned char)name[0]) || name[0] == '_'))
+        return 0;
+    for (i = 1; i < length; i++) {
+        if (!(isalnum((unsigned char)name[i]) || name[i] == '_'))
+            return 0;
+    }
+    return 1;
+}
 
 int is_builtin(const char *name)
 {
@@ -18,7 +32,7 @@ int is_builtin(const char *name)
 
 void print_help(void)
 {
-    puts("Built-ins: cd [dir], pwd, echo [args...], export NAME[=VALUE],");
+    puts("Built-ins: cd [dir], pwd, echo [args...], export NAME[=VALUE] [...],");
     puts("           unset NAME, help, exit [status]");
     puts("Operators: < input, > output, >> append, | pipeline, & background");
 }
@@ -61,22 +75,35 @@ int run_builtin(const Command *command, int *should_exit)
         }
         print_help();
     } else if (strcmp(name, "export") == 0) {
-        char *equals;
-        if (argc != 2 || (equals = strchr(command->argv[1], '=')) == command->argv[1]) {
-            fprintf(stderr, "export: usage: export NAME=VALUE\n");
+        size_t i;
+        if (argc < 2) {
+            fprintf(stderr, "export: usage: export NAME[=VALUE] [...]\n");
             return 2;
         }
-        if (equals == NULL) {
-            const char *value = shell_getenv(command->argv[1]);
-            if (value == NULL)
-                fprintf(stderr, "export: %s is unset\n", command->argv[1]);
-        } else {
-            *equals = '\0';
-            if (setenv(command->argv[1], equals + 1, 1) < 0) {
-                fprintf(stderr, "export: %s\n", strerror(errno));
-                status = 1;
+        for (i = 1; i < argc; i++) {
+            char *equals = strchr(command->argv[i], '=');
+            size_t name_length = equals == NULL
+                                     ? strlen(command->argv[i])
+                                     : (size_t)(equals - command->argv[i]);
+            if (!valid_variable_name(command->argv[i], name_length)) {
+                fprintf(stderr, "export: invalid variable name: %s\n",
+                        command->argv[i]);
+                status = 2;
+                continue;
             }
-            *equals = '=';
+            if (equals == NULL) {
+                if (shell_getenv(command->argv[i]) == NULL) {
+                    fprintf(stderr, "export: %s is unset\n", command->argv[i]);
+                    status = 1;
+                }
+            } else {
+                *equals = '\0';
+                if (setenv(command->argv[i], equals + 1, 1) < 0) {
+                    fprintf(stderr, "export: %s\n", strerror(errno));
+                    status = 1;
+                }
+                *equals = '=';
+            }
         }
     } else if (strcmp(name, "unset") == 0) {
         size_t i;

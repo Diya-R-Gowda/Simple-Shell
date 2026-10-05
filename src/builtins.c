@@ -1,4 +1,5 @@
 #include "builtins.h"
+#include "environment.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -31,7 +32,7 @@ int run_builtin(const Command *command, int *should_exit)
     while (command->argv[argc] != NULL)
         argc++;
     if (strcmp(name, "cd") == 0) {
-        const char *path = argc > 1 ? command->argv[1] : getenv("HOME");
+        const char *path = argc > 1 ? command->argv[1] : shell_getenv("HOME");
         if (argc > 2) {
             fprintf(stderr, "cd: too many arguments\n");
             return 2;
@@ -66,7 +67,7 @@ int run_builtin(const Command *command, int *should_exit)
             return 2;
         }
         if (equals == NULL) {
-            const char *value = getenv(command->argv[1]);
+            const char *value = shell_getenv(command->argv[1]);
             if (value == NULL)
                 fprintf(stderr, "export: %s is unset\n", command->argv[1]);
         } else {

@@ -1,5 +1,6 @@
 #include "executor.h"
 #include "builtins.h"
+#include "environment.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -57,6 +58,22 @@ static int add_job(JobList *jobs, pid_t pid, char *command_line)
     return 0;
 }
 
+static void exec_command(Command *cmd)
+{
+    char *path = resolve_executable_path(cmd->argv[0]);
+    int error_number;
+
+    if (path == NULL) {
+        fprintf(stderr, "%s: command not found\n", cmd->argv[0]);
+        _exit(127);
+    }
+    execv(path, cmd->argv);
+    error_number = errno;
+    free(path);
+    fprintf(stderr, "%s: %s\n", cmd->argv[0], strerror(error_number));
+    _exit(error_number == ENOENT ? 127 : 126);
+}
+
 void run_in_background(Command *cmd, JobList *jobs)
 {
     char *command_line;
@@ -81,9 +98,7 @@ void run_in_background(Command *cmd, JobList *jobs)
     if (pid == 0) {
         if (apply_redirection(cmd) < 0)
             _exit(1);
-        execvp(cmd->argv[0], cmd->argv);
-        fprintf(stderr, "%s: %s\n", cmd->argv[0], strerror(errno));
-        _exit(errno == ENOENT ? 127 : 126);
+        exec_command(cmd);
     }
     if (add_job(jobs, pid, command_line) < 0) {
         fprintf(stderr, "background command: out of memory\n");
@@ -255,9 +270,7 @@ int execute_pipeline(Command *head)
                 int status = run_builtin(command, &should_exit);
                 _exit(should_exit ? 0 : status);
             }
-            execvp(command->argv[0], command->argv);
-            fprintf(stderr, "%s: %s\n", command->argv[0], strerror(errno));
-            _exit(errno == ENOENT ? 127 : 126);
+            exec_command(command);
         }
     }
 

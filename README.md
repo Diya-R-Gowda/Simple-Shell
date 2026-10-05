@@ -104,10 +104,16 @@ This will compile the project and produce an executable named `myshell` (or as d
 
 The implementation is split into `src/parser.c`, `src/executor.c`, and
 `src/builtins.c`.  The parser validates operators and expands `$NAME` and
-`${NAME}` from the shell environment.  The executor uses `execvp`, so commands
-without a slash are resolved using `PATH`; `export NAME=VALUE` and
+``${NAME}` from the shell environment.  The executor resolves command names
+using `PATH` and then uses `execv`; `export NAME=VALUE` and
 `unset NAME` update the shell environment for later commands.  Background
 processes are tracked and reaped at the prompt, preventing zombies.
+
+Executable lookup is implemented by `resolve_executable_path()` in
+`src/environment.c`.  Commands containing `/` are used as supplied; other
+commands are searched in each `PATH` entry with `access(..., X_OK)`.
+`shell_getenv()` provides the shared environment lookup used by parsing and
+built-ins.
 
 The shell can also be exercised non-interactively, which is useful for
 regression tests:

@@ -1,4 +1,5 @@
 #include "parser.h"
+#include "environment.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -88,7 +89,7 @@ static char *expand_variable(const char *line, size_t *position, char *error)
         return NULL;
     memcpy(result, name, length);
     result[length] = '\0';
-    value = getenv(result);
+    value = shell_getenv(result);
     free(result);
     return strdup(value == NULL ? "" : value);
 }

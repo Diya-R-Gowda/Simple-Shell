@@ -278,7 +278,8 @@ int parse_line(const char *line, Command **commands, char **error_message)
             *target = strdup(words.items[++position]);
             if (*target == NULL)
                 goto fail;
-            current->append_mode = strcmp(token, ">>") == 0;
+            if (strcmp(token, ">") == 0 || strcmp(token, ">>") == 0)
+                current->append_mode = strcmp(token, ">>") == 0;
         } else if (strcmp(token, "&") == 0) {
             if (position + 1 != words.count) {
                 snprintf(error, sizeof(error), "'&' must be at the end of a command");

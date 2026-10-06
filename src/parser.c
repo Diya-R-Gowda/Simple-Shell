@@ -60,9 +60,14 @@ static int append_char(char **value, size_t *length, size_t *capacity, char c)
     return 0;
 }
 
+static int variable_name_start_char(char c)
+{
+    return isalpha((unsigned char)c) || c == '_';
+}
+
 static int variable_name_char(char c)
 {
-    return isalnum((unsigned char)c) || c == '_';
+    return variable_name_start_char(c) || isdigit((unsigned char)c);
 }
 
 static char *expand_variable(const char *line, size_t *position, char *error)
@@ -84,7 +89,12 @@ static char *expand_variable(const char *line, size_t *position, char *error)
         length = *position - start;
         {
             size_t i;
-            for (i = 0; i < length; i++) {
+            if (length == 0 || !variable_name_start_char(line[start])) {
+                snprintf(error, 256, "invalid variable name");
+                return NULL;
+            }
+
+            for (i = 1; i < length; i++) {
                 if (!variable_name_char(line[start + i])) {
                     snprintf(error, 256, "invalid variable name");
                     return NULL;
@@ -162,7 +172,11 @@ static char *parse_word(const char *line, size_t *position, char *error)
                 value = strdup(pid_text);
                 (*position)++;
             } else if (line[*position] != '{' &&
-                       !variable_name_char(line[*position])) {
+                !variable_name_start_char(line[*position])) {
+                if (isdigit((unsigned char)line[*position])) {
+                    snprintf(error, 256, "invalid variable name");
+                    goto parse_error;
+                }
                 if (append_char(&word, &length, &capacity, '$') < 0)
                     goto allocation_error;
                 continue;
@@ -329,9 +343,15 @@ int parse_line(const char *line, Command **commands, char **error_message)
         }
     }
     if (current->argv == NULL || current->argv[0] == NULL) {
-        snprintf(error, sizeof(error), "command is missing");
+        if (words.count > 0 &&
+            words.items[words.count - 1].is_operator &&
+            strcmp(words.items[words.count - 1].text, "|") == 0) {
+            snprintf(error, sizeof(error), "pipe requires commands");
+        } else {
+            snprintf(error, sizeof(error), "command is missing");
+        }
         goto fail;
-    }
+}
     if (current->background) {
         for (current = head; current != NULL; current = current->next)
             current->background = 1;

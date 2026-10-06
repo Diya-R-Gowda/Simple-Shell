@@ -2,8 +2,7 @@
 #include "builtins.h"
 #include "environment.h"
 #include "redirection.h"
-
-#include <ctype.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,13 +31,10 @@ static char *command_line_from_command(const Command *command)
     cursor = line;
     for (i = 0; command->argv != NULL && command->argv[i] != NULL; i++) {
         size_t argument_length = strlen(command->argv[i]);
-        size_t j;
         if (i != 0)
             *cursor++ = ' ';
-        for (j = 0; j < argument_length; j++)
-            *cursor++ = isspace((unsigned char)command->argv[i][j])
-                            ? ' '
-                            : command->argv[i][j];
+        memcpy(cursor, command->argv[i], argument_length);
+        cursor += argument_length;
     }
     *cursor = '\0';
     return line;
@@ -70,13 +66,10 @@ static char *command_line_from_pipeline(const Command *head)
         size_t i;
         for (i = 0; command->argv != NULL && command->argv[i] != NULL; i++) {
             size_t argument_length = strlen(command->argv[i]);
-            size_t j;
             if (i != 0)
                 *cursor++ = ' ';
-            for (j = 0; j < argument_length; j++)
-                *cursor++ = isspace((unsigned char)command->argv[i][j])
-                                ? ' '
-                                : command->argv[i][j];
+            memcpy(cursor, command->argv[i], argument_length);
+            cursor += argument_length;
         }
         if (command->next != NULL) {
             memcpy(cursor, " | ", 3);

@@ -140,7 +140,7 @@ printf 'input\n' >"$TMP_DIR/input"
 whitespace_input=$(printf '   echo    spaced   \nexit\n')
 run_case "TC-11" "REQ-5" "extra whitespace" \
     "$whitespace_input" 0 "spaced"
-run_case "TC-12" "REQ-7" "operators recognized" \
+run_case "TC-12" "REQ-7,REQ-14" "operators recognized" \
     "echo operator > $TMP_DIR/operator
 cat < $TMP_DIR/operator
 exit
@@ -171,7 +171,7 @@ run_case "TC-18" "REQ-16" "pipeline builtin output" \
     'echo hi | cat
 exit
 ' 0 "hi"
-run_case "TC-19" "REQ-16,REQ-17" "pipeline with input and output redirection" \
+run_case "TC-19" "REQ-14,REQ-16,REQ-17" "pipeline with input and output redirection" \
     "cat < $TMP_DIR/input | tr a-z A-Z > $TMP_DIR/piped
 cat $TMP_DIR/piped
 exit
@@ -226,7 +226,7 @@ run_case "TC-28" "REQ-SEC-4" "reject 5000-character input and continue" \
 echo recovered
 exit
 " 0 "input line too long"
-run_case "TC-29" "REQ-9" "quoted operators remain arguments" \
+run_case "TC-29" "REQ-6,REQ-9" "quoted operators remain arguments" \
     "echo 'a | b' > $TMP_DIR/quoted
 cat $TMP_DIR/quoted
 exit
@@ -251,8 +251,8 @@ exit
 
 printf '\nRequirement coverage:\n'
 printf '%-12s %-20s %s\n' "REQ-ID" "TEST IDS" "PASS/FAIL"
-for requirement in REQ-1 REQ-2 REQ-3 REQ-4 REQ-5 REQ-7 REQ-8 \
-    REQ-9 REQ-10 REQ-11 REQ-12 REQ-13 REQ-15 REQ-16 REQ-17 \
+for requirement in REQ-1 REQ-2 REQ-3 REQ-4 REQ-5 REQ-6 REQ-7 REQ-8 \
+    REQ-9 REQ-10 REQ-11 REQ-12 REQ-13 REQ-14 REQ-15 REQ-16 REQ-17 \
     REQ-18 REQ-19 REQ-20 REQ-SEC-2 REQ-SEC-3 REQ-SEC-4; do
     test_ids=""
     result=PASS

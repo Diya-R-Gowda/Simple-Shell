@@ -1,7 +1,7 @@
 CC ?= cc
 CFLAGS ?= -std=c99 -Wall -Wextra -Wpedantic -D_POSIX_C_SOURCE=200809L -MMD -MP
 TARGET = myshell
-SOURCES = src/main.c src/parser.c src/builtins.c src/executor.c src/environment.c
+SOURCES = src/main.c src/parser.c src/builtins.c src/executor.c src/environment.c src/redirection.c
 OBJECTS = $(SOURCES:.c=.o)
 
 all: $(TARGET)

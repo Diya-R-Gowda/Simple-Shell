@@ -37,6 +37,8 @@ static char *command_line_from_command(const Command *command)
         if (i != 0)
             *cursor++ = ' ';
         for (j = 0; j < argument_length; j++) {
+            if (command->argv[i][j] == '\n')
+                continue;
             if (command->argv[i][j] == '\\' && j + 1 < argument_length &&
                 command->argv[i][j + 1] == 'n') {
                 j++;
@@ -81,6 +83,8 @@ static char *command_line_from_pipeline(const Command *head)
             if (i != 0)
                 *cursor++ = ' ';
             for (j = 0; j < argument_length; j++) {
+                if (command->argv[i][j] == '\n')
+                    continue;
                 if (command->argv[i][j] == '\\' && j + 1 < argument_length &&
                     command->argv[i][j + 1] == 'n') {
                     j++;

@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 700
+
 #include "redirection.h"
 
 #include <errno.h>

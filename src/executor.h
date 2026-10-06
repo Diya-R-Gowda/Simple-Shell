@@ -3,6 +3,7 @@
 
 #include "parser.h"
 #include "environment.h"
+#include "redirection.h"
 #include <stddef.h>
 #include <sys/types.h>
 
@@ -20,7 +21,6 @@ typedef struct {
     int next_job_id;
 } JobList;
 
-int apply_redirection(Command *cmd);
 int execute_command(Command *cmd);
 void run_in_background(Command *cmd, JobList *jobs);
 void reap_finished_jobs(JobList *jobs);

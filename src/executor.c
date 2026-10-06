@@ -463,7 +463,8 @@ int execute_pipeline(Command *head)
                 fprintf(stderr, "background pipeline: out of memory\n");
                 wait_for_pids(pids, command_total);
                 free(command_line);
-                free(pids);
+            } else {
+                pids = NULL;
             }
         }
     } else {

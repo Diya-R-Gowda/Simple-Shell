@@ -89,17 +89,17 @@ static char *expand_variable(const char *line, size_t *position, char *error)
         length = *position - start;
         {
             size_t i;
-        if (length == 0 || !variable_name_start_char(line[start])) {
-            snprintf(error, 256, "invalid variable name");
-            return NULL;
-        }
-
-        for (i = 1; i < length; i++) {
-            if (!variable_name_char(line[start + i])) {
+            if (length == 0 || !variable_name_start_char(line[start])) {
                 snprintf(error, 256, "invalid variable name");
                 return NULL;
             }
-        }
+
+            for (i = 1; i < length; i++) {
+                if (!variable_name_char(line[start + i])) {
+                    snprintf(error, 256, "invalid variable name");
+                    return NULL;
+                }
+            }
         }
         (*position)++;
     } else {
@@ -173,6 +173,10 @@ static char *parse_word(const char *line, size_t *position, char *error)
                 (*position)++;
             } else if (line[*position] != '{' &&
                 !variable_name_start_char(line[*position])) {
+                if (isdigit((unsigned char)line[*position])) {
+                    snprintf(error, 256, "invalid variable name");
+                    goto parse_error;
+                }
                 if (append_char(&word, &length, &capacity, '$') < 0)
                     goto allocation_error;
                 continue;

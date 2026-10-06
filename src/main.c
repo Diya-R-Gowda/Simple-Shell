@@ -1,4 +1,5 @@
 #include "executor.h"
+#include "limits.h"
 #include "parser.h"
 
 #include <stdio.h>
@@ -8,8 +9,7 @@
 
 int main(void)
 {
-    char *line = NULL;
-    size_t capacity = 0;
+    char line[MAX_LINE_LENGTH + 1];
     int interactive = isatty(STDIN_FILENO);
     int running = 1;
     int exit_status = 0;
@@ -25,10 +25,21 @@ int main(void)
             fputs("myshell> ", stdout);
             fflush(stdout);
         }
-        length = getline(&line, &capacity, stdin);
-        if (length < 0) {
+        if (fgets(line, sizeof(line), stdin) == NULL) {
             reached_eof = 1;
             break;
+        }
+        length = (ssize_t)strlen(line);
+        if (length == MAX_LINE_LENGTH && line[length - 1] != '\n') {
+            int character;
+            int too_long = 0;
+            while ((character = fgetc(stdin)) != '\n' && character != EOF)
+                too_long = 1;
+            if (too_long || (character != '\n' && character != EOF)) {
+                fprintf(stderr, "input line too long (max 4096 characters)\n");
+                shell_set_last_status(2);
+                continue;
+            }
         }
         if (length > 0 && line[length - 1] == '\n')
             line[length - 1] = '\0';
@@ -50,7 +61,6 @@ int main(void)
     }
     if (interactive && reached_eof)
         putchar('\n');
-    free(line);
     reap_background_jobs();
     free_job_list(shell_job_list());
     if (!running)

@@ -1,9 +1,9 @@
 #include "executor.h"
 #include "builtins.h"
 #include "environment.h"
+#include "redirection.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -247,40 +247,6 @@ void free_job_list(JobList *jobs)
 void reap_background_jobs(void)
 {
     reap_finished_jobs(&shell_jobs);
-}
-
-int apply_redirection(Command *cmd)
-{
-    int fd;
-    if (cmd->input_file != NULL) {
-        fd = open(cmd->input_file, O_RDONLY);
-        if (fd < 0) {
-            perror(cmd->input_file);
-            return -1;
-        }
-        if (dup2(fd, STDIN_FILENO) < 0) {
-            perror("dup2");
-            close(fd);
-            return -1;
-        }
-        close(fd);
-    }
-    if (cmd->output_file != NULL) {
-        int flags = O_WRONLY | O_CREAT |
-                    (cmd->append_mode ? O_APPEND : O_TRUNC);
-        fd = open(cmd->output_file, flags, 0644);
-        if (fd < 0) {
-            perror(cmd->output_file);
-            return -1;
-        }
-        if (dup2(fd, STDOUT_FILENO) < 0) {
-            perror("dup2");
-            close(fd);
-            return -1;
-        }
-        close(fd);
-    }
-    return 0;
 }
 
 static size_t command_count(const Command *commands)

@@ -1,5 +1,6 @@
 #include "parser.h"
 #include "environment.h"
+#include "limits.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -312,6 +313,11 @@ int parse_line(const char *line, Command **commands, char **error_message)
             char **grown;
             while (current->argv != NULL && current->argv[count] != NULL)
                 count++;
+            if (count >= MAX_ARGS) {
+                snprintf(error, sizeof(error),
+                         "command has too many arguments (maximum %d)", MAX_ARGS);
+                goto fail;
+            }
             grown = realloc(current->argv, (count + 2) * sizeof(*grown));
             if (grown == NULL)
                 goto fail;

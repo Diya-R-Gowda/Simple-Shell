@@ -136,13 +136,17 @@ static char *parse_word(const char *line, size_t *position, char *error)
                         c == '>' || c == '&'))
             break;
         if (c == '\\' && (!quoted || quote == '"')) {
+            char escaped;
             (*position)++;
             if (line[*position] == '\0') {
                 snprintf(error, 256, "trailing escape");
                 free(word);
                 return NULL;
             }
-            if (append_char(&word, &length, &capacity, line[(*position)++]) < 0)
+            escaped = line[(*position)++];
+            if (escaped == 'n')
+                escaped = '\n';
+            if (append_char(&word, &length, &capacity, escaped) < 0)
                 goto allocation_error;
             continue;
         }

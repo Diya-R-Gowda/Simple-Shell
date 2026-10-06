@@ -65,10 +65,10 @@ The system is a standalone, self-contained command-line application. It does not
 
 | Owner | Functional Feature(s) | Qualitative Property |
 | --- | --- | --- |
-| **Prithviraj** | REPL loop (prompt/read/execute cycle) + built-in commands: `cd`, `exit`, `pwd`, `echo`, `help` | Near-instant response for built-ins; clear error message on invalid usage |
-| **Aarush** | Command parsing / tokenization — splitting input into command + arguments, handling whitespace, quotes, special characters | Robust against malformed/unusual input without crashing |
-| **Debhargo** | Command execution engine — `fork()`, `exec()`, `wait()`, PATH resolution, exit-status reporting | No orphaned/zombie processes; accurate exit-status handling |
-| **Diya** | I/O redirection (`<`, `>`, `>>`), piping (`\|`), background execution (`&`), environment variable / PATH handling | Correctness of combined pipelines + redirection; owns integration, error handling, and docs |
+| **Prithviraj** | REQ-1–REQ-4: REPL loop (prompt/read/execute cycle) and built-ins: `cd`, `exit`, `pwd`, `echo`, `help` | Near-instant response for built-ins; clear error message on invalid usage |
+| **Aarush** | REQ-5–REQ-8: parsing/tokenization; REQ-18–REQ-19: background execution and job IDs | Robust malformed-input handling; prompt returns without waiting for background work |
+| **Debhargo** | REQ-9–REQ-12: command execution; REQ-16–REQ-17: piping and descriptor cleanup | Correct fork/exec/wait behavior, PATH-independent execution, and no pipeline hangs |
+| **Diya** | REQ-13–REQ-15: redirection; REQ-20: environment/PATH handling; REQ-SEC-2 security validation | Correct combined redirection and environment behavior with validated file paths |
 
 > Everyone is expected to test and review across all modules, not just their own — per team guidelines.
 
@@ -119,6 +119,10 @@ This will compile the project and produce an executable named `myshell` (or as d
 - The parser validates operators and expands `$NAME` and `${NAME}` from the
   shell environment. `export NAME[=VALUE] [...]` and `unset NAME` update the
   environment used by later commands.
+- Input is bounded to 4096 characters per line and 256 arguments per command.
+- Redirection rejects empty paths and `..` path components. Existing input paths
+  and output parent directories are canonicalized with `realpath()` before
+  `open()` is called.
 
 ## Testing
 

@@ -24,7 +24,7 @@ being represented as complete.
 | REQ-16 | Chain commands with pipes | `src/executor.c`: `execute_pipeline` | Implemented |
 | REQ-17 | Close unused pipe descriptors | `src/executor.c`: `execute_pipeline`, `close_pipes` | Implemented |
 | REQ-18 | Run commands in the background | `src/executor.c`: `run_in_background`, `execute_pipeline` | Implemented |
-| REQ-19 | View background jobs on request | `src/executor.c`: `JobList`, `reap_finished_jobs` | Partial: tracking exists; no `jobs` built-in |
+| REQ-19 | View background jobs on request | `src/executor.c`: `JobList`, `reap_finished_jobs`, `shell_job_list`; `src/builtins.c`: `jobs` built-in | Implemented |
 | REQ-20 | Read and pass environment variables | `src/environment.c`: `shell_getenv`; `src/builtins.c`: `run_builtin`; `src/parser.c`: `expand_variable` | Implemented |
 | REQ-21 | Maintain command history | No implementation | Not implemented |
 | REQ-22 | Handle SIGINT at the prompt | No implementation | Not implemented |

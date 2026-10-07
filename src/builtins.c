@@ -1,6 +1,6 @@
 #include "builtins.h"
 #include "environment.h"
-
+#include "executor.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -27,13 +27,13 @@ int is_builtin(const char *name)
            (strcmp(name, "cd") == 0 || strcmp(name, "pwd") == 0 ||
             strcmp(name, "echo") == 0 || strcmp(name, "help") == 0 ||
             strcmp(name, "exit") == 0 || strcmp(name, "export") == 0 ||
-            strcmp(name, "unset") == 0);
+            strcmp(name, "unset") == 0 || strcmp(name, "jobs") == 0);
 }
 
 void print_help(void)
 {
     puts("Built-ins: cd [dir], pwd, echo [args...], export NAME[=VALUE] [...],");
-    puts("           unset NAME, help, exit [status]");
+    puts("           unset NAME, jobs, help, exit [status]");
     puts("Operators: < input, > output, >> append, | pipeline, & background");
 }
 
@@ -117,6 +117,17 @@ int run_builtin(const Command *command, int *should_exit)
                 status = 1;
             }
         }
+
+    } else if (strcmp(name, "jobs") == 0) {
+        JobList *jobs = shell_job_list();
+        Job *job;
+
+        for (job = jobs->head; job != NULL; job = job->next) {
+            printf("[%d] Running %s\n",
+                job->job_id,
+                job->command_line == NULL ? "(unknown command)" : job->command_line);
+        }
+
     } else if (strcmp(name, "exit") == 0) {
         char *end;
         long value;

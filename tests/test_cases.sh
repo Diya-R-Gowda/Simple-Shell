@@ -195,8 +195,11 @@ run_case "TC-23" "REQ-18" "background pipeline is one job" \
 sleep 1
 exit
 ' 0 "Done printf x | cat"
-printf 'SKIPPED: no jobs command (REQ-19)\n'
-record_result "TC-24" "REQ-19" SKIPPED
+run_case "TC-24" "REQ-19" "jobs lists background job" \
+    'sleep 1 &
+jobs
+exit
+' 0 "Running sleep 1"
 run_case "TC-25" "REQ-SEC-2" "reject parent traversal path" \
     'echo rejected > ../rejected
 exit

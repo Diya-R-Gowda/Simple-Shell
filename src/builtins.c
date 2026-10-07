@@ -32,22 +32,9 @@ int is_builtin(const char *name)
 
 void print_help(void)
 {
-    puts("Simple Shell - Built-in Commands");
-    puts("  cd [dir]                    Change the current directory");
-    puts("  pwd                         Print the current working directory");
-    puts("  echo [args...]              Print the given arguments");
-    puts("  export NAME[=VALUE] [...]   Set environment variables");
-    puts("  unset NAME [...]            Remove environment variables");
-    puts("  jobs                        List background jobs");
-    puts("  help                        Display this help message");
-    puts("  exit [status]               Exit the shell");
-    puts("");
-    puts("Operators:");
-    puts("  < input                     Input redirection");
-    puts("  > output                    Output redirection");
-    puts("  >> append                   Append output to a file");
-    puts("  | pipeline                  Pipe output to another command");
-    puts("  & background                Run a command in the background");
+    puts("Built-ins: cd [dir], pwd, echo [args...], export NAME[=VALUE] [...],");
+    puts("           unset NAME, jobs, help, exit [status]");
+    puts("Operators: < input, > output, >> append, | pipeline, & background");
 }
 
 int run_builtin(const Command *command, int *should_exit)

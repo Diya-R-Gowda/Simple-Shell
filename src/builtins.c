@@ -32,9 +32,22 @@ int is_builtin(const char *name)
 
 void print_help(void)
 {
-    puts("Built-ins: cd [dir], pwd, echo [args...], export NAME[=VALUE] [...],");
-    puts("           unset NAME, jobs, help, exit [status]");
-    puts("Operators: < input, > output, >> append, | pipeline, & background");
+    puts("Simple Shell - Built-in Commands");
+    puts("  cd [dir]                    Change the current directory");
+    puts("  pwd                         Print the current working directory");
+    puts("  echo [args...]              Print the given arguments");
+    puts("  export NAME[=VALUE] [...]   Set environment variables");
+    puts("  unset NAME [...]            Remove environment variables");
+    puts("  jobs                        List background jobs");
+    puts("  help                        Display this help message");
+    puts("  exit [status]               Exit the shell");
+    puts("");
+    puts("Operators:");
+    puts("  < input                     Input redirection");
+    puts("  > output                    Output redirection");
+    puts("  >> append                   Append output to a file");
+    puts("  | pipeline                  Pipe output to another command");
+    puts("  & background                Run a command in the background");
 }
 
 int run_builtin(const Command *command, int *should_exit)
@@ -43,77 +56,103 @@ int run_builtin(const Command *command, int *should_exit)
     size_t argc = 0;
     int status = 0;
     *should_exit = 0;
+
     while (command->argv[argc] != NULL)
         argc++;
+
     if (strcmp(name, "cd") == 0) {
         const char *path = argc > 1 ? command->argv[1] : shell_getenv("HOME");
+
         if (argc > 2) {
             fprintf(stderr, "cd: too many arguments\n");
             return 2;
         }
+
         if (path == NULL || chdir(path) < 0) {
-            fprintf(stderr, "cd: %s: %s\n", path == NULL ? "(HOME is unset)" : path,
+            fprintf(stderr, "cd: %s: %s\n",
+                    path == NULL ? "(HOME is unset)" : path,
                     path == NULL ? "HOME is not set" : strerror(errno));
             return 1;
         }
+
     } else if (strcmp(name, "pwd") == 0) {
         char cwd[4096];
+
         if (argc > 1 || getcwd(cwd, sizeof(cwd)) == NULL) {
-            fprintf(stderr, "pwd: %s\n", argc > 1 ? "too many arguments" : strerror(errno));
+            fprintf(stderr, "pwd: %s\n",
+                    argc > 1 ? "too many arguments" : strerror(errno));
             return 1;
         }
+
         puts(cwd);
+
     } else if (strcmp(name, "echo") == 0) {
         size_t i;
+
         for (i = 1; i < argc; i++)
             printf("%s%s", i == 1 ? "" : " ", command->argv[i]);
+
         putchar('\n');
+
     } else if (strcmp(name, "help") == 0) {
         if (argc > 1) {
             fprintf(stderr, "help: no arguments expected\n");
             return 2;
         }
+
         print_help();
+
     } else if (strcmp(name, "export") == 0) {
         size_t i;
+
         if (argc < 2) {
             fprintf(stderr, "export: usage: export NAME[=VALUE] [...]\n");
             return 2;
         }
+
         for (i = 1; i < argc; i++) {
             char *equals = strchr(command->argv[i], '=');
             size_t name_length = equals == NULL
                                      ? strlen(command->argv[i])
                                      : (size_t)(equals - command->argv[i]);
+
             if (!valid_variable_name(command->argv[i], name_length)) {
                 fprintf(stderr, "export: invalid variable name: %s\n",
                         command->argv[i]);
                 status = 2;
                 continue;
             }
+
             if (equals == NULL) {
                 if (shell_getenv(command->argv[i]) == NULL) {
-                    fprintf(stderr, "export: %s is unset\n", command->argv[i]);
+                    fprintf(stderr, "export: %s is unset\n",
+                            command->argv[i]);
                     status = 1;
                 }
             } else {
                 *equals = '\0';
+
                 if (setenv(command->argv[i], equals + 1, 1) < 0) {
                     fprintf(stderr, "export: %s\n", strerror(errno));
                     status = 1;
                 }
+
                 *equals = '=';
             }
         }
+
     } else if (strcmp(name, "unset") == 0) {
         size_t i;
+
         if (argc < 2) {
             fprintf(stderr, "unset: usage: unset NAME [...]\n");
             return 2;
         }
+
         for (i = 1; i < argc; i++) {
             if (unsetenv(command->argv[i]) < 0) {
-                fprintf(stderr, "unset: %s: %s\n", command->argv[i], strerror(errno));
+                fprintf(stderr, "unset: %s: %s\n",
+                        command->argv[i], strerror(errno));
                 status = 1;
             }
         }
@@ -124,27 +163,36 @@ int run_builtin(const Command *command, int *should_exit)
 
         for (job = jobs->head; job != NULL; job = job->next) {
             printf("[%d] Running %s\n",
-                job->job_id,
-                job->command_line == NULL ? "(unknown command)" : job->command_line);
+                   job->job_id,
+                   job->command_line == NULL
+                       ? "(unknown command)"
+                       : job->command_line);
         }
 
     } else if (strcmp(name, "exit") == 0) {
         char *end;
         long value;
+
         if (argc > 2) {
             fprintf(stderr, "exit: too many arguments\n");
             return 2;
         }
+
         if (argc == 2) {
             errno = 0;
             value = strtol(command->argv[1], &end, 10);
-            if (errno != 0 || *end != '\0' || value < 0 || value > 255) {
+
+            if (errno != 0 || *end != '\0' ||
+                value < 0 || value > 255) {
                 fprintf(stderr, "exit: expected a status from 0 to 255\n");
                 return 2;
             }
+
             status = (int)value;
         }
+
         *should_exit = 1;
     }
+
     return status;
 }
